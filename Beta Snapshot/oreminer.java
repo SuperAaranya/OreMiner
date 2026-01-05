@@ -9,7 +9,7 @@ import java.util.UUID;
 import com.google.gson.*;
 
 public class oreminer extends JFrame {
-    private static final int SIZE = 10;
+    private static final int SIZE = 15;
     private static final String HIGHSCORE_FILE = "highscore.json";
     private static final String SEED_FILE = "seeds.json";
     private static final String SETTINGS_FILE = "settings.json";
@@ -25,9 +25,9 @@ public class oreminer extends JFrame {
     private Gson gson;
 
     private enum Difficulty {
-        EASY(60, 80, 90, 96, 99),
-        NORMAL(50, 70, 85, 93, 98),
-        HARD(40, 60, 75, 85, 95);
+        EASY(50, 70, 82, 90, 95, 98, 99),
+        NORMAL(40, 60, 75, 86, 93, 97, 99),
+        HARD(30, 50, 70, 82, 90, 95, 98);
 
         final int[] thresholds;
 
@@ -36,11 +36,16 @@ public class oreminer extends JFrame {
         }
     }
 
+    private enum Theme {
+        LIGHT,
+        DARK
+    }
+
     private static class GameSettings {
         private Difficulty difficulty = Difficulty.NORMAL;
         private boolean soundEnabled = true;
         private boolean animationsEnabled = true;
-        private String theme = "Default";
+        private Theme theme = Theme.LIGHT;
 
         public GameSettings() {}
     }
@@ -77,6 +82,7 @@ public class oreminer extends JFrame {
         createMenuBar();
         createScorePanel();
         createGamePanel();
+        applyTheme();
 
         pack();
         setLocationRelativeTo(null);
@@ -203,6 +209,31 @@ public class oreminer extends JFrame {
             saveSettings();
         });
 
+        JMenu themeSubMenu = new JMenu("Theme");
+        ButtonGroup themeGroup = new ButtonGroup();
+
+        JRadioButtonMenuItem lightItem = new JRadioButtonMenuItem("Light Mode");
+        lightItem.setSelected(settings.theme == Theme.LIGHT);
+        lightItem.addActionListener(e -> {
+            settings.theme = Theme.LIGHT;
+            saveSettings();
+            applyTheme();
+        });
+        themeGroup.add(lightItem);
+        themeSubMenu.add(lightItem);
+
+        JRadioButtonMenuItem darkItem = new JRadioButtonMenuItem("Dark Mode");
+        darkItem.setSelected(settings.theme == Theme.DARK);
+        darkItem.addActionListener(e -> {
+            settings.theme = Theme.DARK;
+            saveSettings();
+            applyTheme();
+        });
+        themeGroup.add(darkItem);
+        themeSubMenu.add(darkItem);
+
+        settingsMenu.add(themeSubMenu);
+
         JMenuItem resetHighScoreItem = new JMenuItem("Reset High Score");
         resetHighScoreItem.addActionListener(e -> {
             int response = JOptionPane.showConfirmDialog(this,
@@ -316,6 +347,49 @@ public class oreminer extends JFrame {
         add(gamePanel, BorderLayout.CENTER);
     }
 
+    private void applyTheme() {
+        Color bg = settings.theme == Theme.DARK ? new Color(34, 34, 34) : Color.WHITE;
+        Color panelBg = settings.theme == Theme.DARK ? new Color(45, 45, 45) : Color.LIGHT_GRAY;
+        Color buttonBg = settings.theme == Theme.DARK ? new Color(64, 64, 64) : Color.LIGHT_GRAY;
+        Color buttonFg = settings.theme == Theme.DARK ? Color.WHITE : Color.BLACK;
+        Color labelFg = settings.theme == Theme.DARK ? Color.WHITE : Color.BLACK;
+
+        if (getContentPane() != null) getContentPane().setBackground(bg);
+        if (gamePanel != null) gamePanel.setBackground(bg);
+        if (scoreLabel != null) scoreLabel.setForeground(labelFg);
+        if (highScoreLabel != null) highScoreLabel.setForeground(labelFg);
+        if (gridButtons != null) {
+            for (int r = 0; r < SIZE; r++) {
+                for (int c = 0; c < SIZE; c++) {
+                    JButton b = gridButtons[r][c];
+                    if (b != null && b.isEnabled()) {
+                        b.setBackground(buttonBg);
+                        b.setForeground(buttonFg);
+                    }
+                }
+            }
+        }
+
+        JMenuBar mb = getJMenuBar();
+        if (mb != null) {
+            mb.setBackground(panelBg);
+            for (int i = 0; i < mb.getMenuCount(); i++) {
+                JMenu m = mb.getMenu(i);
+                if (m != null) {
+                    m.setBackground(panelBg);
+                    m.setForeground(labelFg);
+                    for (int j = 0; j < m.getItemCount(); j++) {
+                        JMenuItem it = m.getItem(j);
+                        if (it != null) {
+                            it.setBackground(panelBg);
+                            it.setForeground(labelFg);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     private void initializeOreGrid() {
         Random random = new Random();
         int[] thresholds = settings.difficulty.thresholds;
@@ -333,8 +407,12 @@ public class oreminer extends JFrame {
                     oreGrid[row][col] = 3;
                 } else if (rand < thresholds[4]) {
                     oreGrid[row][col] = 4;
-                } else {
+                } else if (rand < thresholds[5]) {
                     oreGrid[row][col] = 5;
+                } else if (rand < thresholds[6]) {
+                    oreGrid[row][col] = 6;
+                } else {
+                    oreGrid[row][col] = 7;
                 }
             }
         }
@@ -478,6 +556,7 @@ public class oreminer extends JFrame {
         }
 
         add(gamePanel, BorderLayout.CENTER);
+        applyTheme();
         revalidate();
         repaint();
     }
@@ -500,11 +579,13 @@ public class oreminer extends JFrame {
             "1. Click 'Mine' buttons to dig for ore\n" +
             "2. Each ore type gives different points:\n" +
             "   • Stone: 0 points\n" +
-            "   • Quartz: 1 point\n" +
-            "   • Copper: 2 points\n" +
-            "   • Amethyst: 3 points\n" +
-            "   • Gold: 4 points\n" +
-            "   • Diamond: 5 points\n\n" +
+            "   • Copper: 1 point\n" +
+            "   • Quartz: 2 points\n" +
+            "   • Iron: 3 points\n" +
+            "   • Amethyst: 4 points\n" +
+            "   • Gold: 5 points\n" +
+            "   • Jadeite: 6 points\n" +
+            "   • Diamond: 7 points\n\n" +
             "3. Try to get the highest score possible!\n\n" +
             "Features:\n" +
             "• Save and import seeds to replay boards\n" +
@@ -517,11 +598,13 @@ public class oreminer extends JFrame {
     private String getOreName(int points) {
         switch (points) {
             case 0: return "Stone";
-            case 1: return "Quartz";
-            case 2: return "Copper";
-            case 3: return "Amethyst";
-            case 4: return "Gold";
-            case 5: return "Diamond";
+            case 1: return "Copper";
+            case 2: return "Quartz";
+            case 3: return "Iron";
+            case 4: return "Amethyst";
+            case 5: return "Gold";
+            case 6: return "Jadeite";
+            case 7: return "Diamond";
             default: return "Unknown";
         }
     }
@@ -529,11 +612,13 @@ public class oreminer extends JFrame {
     private Color getOreColor(int points) {
         switch (points) {
             case 0: return new Color(100, 100, 100);
-            case 1: return new Color(255, 255, 250);
-            case 2: return new Color(184, 115, 51);
-            case 3: return new Color(160, 100, 220);
-            case 4: return new Color(255, 215, 0);
-            case 5: return new Color(170, 255, 255);
+            case 1: return new Color(184, 115, 51);
+            case 2: return new Color(255, 255, 250);
+            case 3: return new Color(255, 223, 252);
+            case 4: return new Color(160, 100, 220);
+            case 5: return new Color(255, 215, 0);
+            case 6: return new Color(32, 128, 0);
+            case 7: return new Color(170, 255, 255);
             default: return Color.WHITE;
         }
     }
