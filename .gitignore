@@ -1,0 +1,7 @@
+*.class
+*.log
+__pycache__/
+*.pyc
+**/highscore.json
+**/settings.json
+**/seeds.json

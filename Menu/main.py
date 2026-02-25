@@ -1,56 +1,97 @@
-import tkinter as tk
-import subprocess
 import os
+import subprocess
 import sys
+from pathlib import Path
+import tkinter as tk
+from tkinter import messagebox
 
-def run_java_project(release_path):
-    root.destroy()
+RELEASES = [
+    ("Beta Snapshot", "Beta Snapshot"),
+    ("Full Release", "Full Release"),
+    ("Release Candidate", "Release Canidate"),
+]
+
+
+def get_project_root() -> Path:
+    return Path(__file__).resolve().parent.parent
+
+
+def get_release_dir(relative_name: str) -> Path:
+    return get_project_root() / relative_name
+
+
+def build_classpath() -> str:
+    return os.pathsep.join([".", "json-simple-1.1.1.jar", "gson-2.10.1.jar"])
+
+
+def launch_release(relative_name: str) -> None:
+    release_dir = get_release_dir(relative_name)
+    source_file = release_dir / "oreminer.java"
+    if not release_dir.exists():
+        messagebox.showerror("Missing Folder", f"Folder not found:\n{release_dir}")
+        return
+    if not source_file.exists():
+        messagebox.showerror("Missing Source", f"Source file not found:\n{source_file}")
+        return
+
+    required_jars = [release_dir / "json-simple-1.1.1.jar", release_dir / "gson-2.10.1.jar"]
+    missing_jars = [str(jar) for jar in required_jars if not jar.exists()]
+    if missing_jars:
+        messagebox.showerror("Missing Libraries", "Required jar files are missing:\n" + "\n".join(missing_jars))
+        return
+
+    classpath = build_classpath()
     try:
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        oreminer_root = os.path.dirname(current_dir)
-        java_dir = os.path.join(oreminer_root, release_path)
-        
-        classpath = ".;json-simple-1.1.1.jar .;gson-2.10.1.jar"
-        
-        print("Compiling and Running Java Project...")
-        
-        compile_command = ["javac", "-cp", classpath, "oreminer.java"]
-        
-        compile_process = subprocess.run(compile_command, cwd=java_dir, check=True, capture_output=True, text=True)
-        print("Compilation successful.")
-        
-        run_command = ["java", "-cp", classpath, "oreminer"]
-        subprocess.Popen(run_command, cwd=java_dir)
-        
-    except subprocess.CalledProcessError as e:
-        error_message = f"Java Compilation Failed in {java_dir}:\n{e.stderr}"
-        tk.messagebox.showerror("Error", error_message)
-        print(error_message)
-        sys.exit(1)
+        compile_result = subprocess.run(
+            ["javac", "-cp", classpath, "oreminer.java"],
+            cwd=release_dir,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
     except FileNotFoundError:
-        error_message = f"Java or Javac not found. Ensure Java Development Kit (JDK) is installed and in your PATH."
-        tk.messagebox.showerror("Error", error_message)
-        print(error_message)
-        sys.exit(1)
+        messagebox.showerror("JDK Not Found", "javac was not found in PATH. Install JDK and try again.")
+        return
 
-def run_beta():
-    run_java_project("Beta Snapshot")
+    if compile_result.returncode != 0:
+        error_text = compile_result.stderr.strip() or "Compilation failed with no stderr output."
+        messagebox.showerror("Compilation Failed", error_text)
+        return
 
-def run_full():
-    run_java_project("Full Release")
+    try:
+        subprocess.Popen(["java", "-cp", classpath, "oreminer"], cwd=release_dir)
+    except FileNotFoundError:
+        messagebox.showerror("Java Not Found", "java was not found in PATH. Install JDK and try again.")
+        return
 
-root = tk.Tk()
-root.title("OreMiner Menu")
-root.geometry("300x150")
-root.resizable(False, False)
+    root.destroy()
 
-title_label = tk.Label(root, text="Select Release Version", font=("Arial", 14))
-title_label.pack(pady=10)
 
-beta_button = tk.Button(root, text="Beta Snapshot", width=20, command=run_beta)
-beta_button.pack(pady=5)
+def create_ui() -> tk.Tk:
+    window = tk.Tk()
+    window.title("OreMiner Launcher")
+    window.geometry("360x230")
+    window.resizable(False, False)
 
-full_button = tk.Button(root, text="Full Release", width=20, command=run_full)
-full_button.pack(pady=5)
+    title = tk.Label(window, text="Choose a Release", font=("Arial", 16, "bold"))
+    title.pack(pady=14)
 
-root.mainloop()
+    subtitle = tk.Label(window, text="Compile and run from this launcher")
+    subtitle.pack(pady=(0, 14))
+
+    for label, path_name in RELEASES:
+        button = tk.Button(
+            window,
+            text=label,
+            width=24,
+            height=1,
+            command=lambda p=path_name: launch_release(p),
+        )
+        button.pack(pady=5)
+
+    return window
+
+
+if __name__ == "__main__":
+    root = create_ui()
+    root.mainloop()
