@@ -6,8 +6,8 @@ import tkinter as tk
 from tkinter import messagebox
 
 RELEASES = [
-    ("Beta Snapshot", "Beta Snapshot"),
-    ("Full Release", "Full Release"),
+    ("Snapshot 1.4.1", "Beta Snapshot"),
+    ("Release 1.4", "Full Release"),
     ("Release Candidate", "Release Canidate"),
 ]
 
@@ -69,11 +69,11 @@ def launch_release(relative_name: str) -> None:
 
 def create_ui() -> tk.Tk:
     window = tk.Tk()
-    window.title("OreMiner Launcher")
+    window.title("OreMiner 1.4 Launcher")
     window.geometry("360x230")
     window.resizable(False, False)
 
-    title = tk.Label(window, text="Choose a Release", font=("Arial", 16, "bold"))
+    title = tk.Label(window, text="Choose a Build", font=("Arial", 16, "bold"))
     title.pack(pady=14)
 
     subtitle = tk.Label(window, text="Compile and run from this launcher")

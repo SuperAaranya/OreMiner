@@ -23,6 +23,7 @@ public class oreminer extends JFrame {
     private JPanel gamePanel;
     private GameSettings settings;
     private Gson gson;
+    private float renderPhase = 0f;
 
     private enum Difficulty {
         EASY(60, 80, 90, 96, 99),
@@ -34,6 +35,13 @@ public class oreminer extends JFrame {
         Difficulty(int... thresholds) {
             this.thresholds = thresholds;
         }
+
+    
+    }
+
+    private enum Renderer {
+        SOFTWARE,
+        HARDWARE_ACCELERATED
     }
 
     private static class GameSettings {
@@ -41,6 +49,7 @@ public class oreminer extends JFrame {
         private boolean soundEnabled = true;
         private boolean animationsEnabled = true;
         private String theme = "Default";
+        private Renderer renderer = Renderer.HARDWARE_ACCELERATED;
 
         public GameSettings() {}
     }
@@ -62,7 +71,8 @@ public class oreminer extends JFrame {
         loadSettings();
         loadHighScore();
         
-        setTitle("Ore Miner");
+        applyRendererBackend();
+        setTitle("Ore Miner 1.4 Release");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         addWindowListener(new java.awt.event.WindowAdapter() {
             @Override
@@ -92,6 +102,12 @@ public class oreminer extends JFrame {
                 reader.close();
                 if (settings == null) {
                     settings = new GameSettings();
+                }
+                if (settings.theme == null) {
+                    settings.theme = "Default";
+                }
+                if (settings.renderer == null) {
+                    settings.renderer = Renderer.HARDWARE_ACCELERATED;
                 }
             } else {
                 settings = new GameSettings();
@@ -203,6 +219,27 @@ public class oreminer extends JFrame {
             saveSettings();
         });
 
+        JMenu rendererSubMenu = new JMenu("Renderer");
+        ButtonGroup rendererGroup = new ButtonGroup();
+
+        for (Renderer renderer : Renderer.values()) {
+            String label = renderer == Renderer.HARDWARE_ACCELERATED ? "Hardware Accelerated" : "Software";
+            JRadioButtonMenuItem rendererItem = new JRadioButtonMenuItem(label);
+            rendererItem.setSelected(settings.renderer == renderer);
+            rendererItem.addActionListener(e -> {
+                settings.renderer = renderer;
+                saveSettings();
+                applyRendererBackend();
+                repaint();
+                JOptionPane.showMessageDialog(this,
+                    "Renderer switched to " + label + ". Some pipeline changes apply on next launch.",
+                    "Renderer Updated",
+                    JOptionPane.INFORMATION_MESSAGE);
+            });
+            rendererGroup.add(rendererItem);
+            rendererSubMenu.add(rendererItem);
+        }
+
         JMenuItem resetHighScoreItem = new JMenuItem("Reset High Score");
         resetHighScoreItem.addActionListener(e -> {
             int response = JOptionPane.showConfirmDialog(this,
@@ -248,6 +285,7 @@ public class oreminer extends JFrame {
 
         settingsMenu.add(soundItem);
         settingsMenu.add(animationsItem);
+        settingsMenu.add(rendererSubMenu);
         settingsMenu.addSeparator();
         settingsMenu.add(resetHighScoreItem);
         settingsMenu.add(clearSeedsItem);
@@ -296,7 +334,7 @@ public class oreminer extends JFrame {
         initializeOreGrid();
         generateSeed();
 
-        gamePanel = new JPanel();
+        gamePanel = new RenderGridPanel();
         gamePanel.setLayout(new GridLayout(SIZE, SIZE));
         gamePanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
@@ -460,7 +498,7 @@ public class oreminer extends JFrame {
             generateSeed();
         }
 
-        gamePanel = new JPanel();
+        gamePanel = new RenderGridPanel();
         gamePanel.setLayout(new GridLayout(SIZE, SIZE));
         gamePanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
@@ -482,9 +520,64 @@ public class oreminer extends JFrame {
         repaint();
     }
 
+    private void applyRendererBackend() {
+        if (settings == null || settings.renderer == null) {
+            return;
+        }
+        if (settings.renderer == Renderer.HARDWARE_ACCELERATED) {
+            System.setProperty("sun.java2d.opengl", "true");
+            System.setProperty("sun.java2d.d3d", "true");
+            System.setProperty("sun.java2d.accthreshold", "0");
+        } else {
+            System.setProperty("sun.java2d.opengl", "false");
+            System.setProperty("sun.java2d.d3d", "false");
+        }
+    }
+
+    private boolean isDarkTheme() {
+        return settings != null && settings.theme != null && settings.theme.equalsIgnoreCase("Dark");
+    }
+
+    private class RenderGridPanel extends JPanel {
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+            int width = getWidth();
+            int height = getHeight();
+            float shift = renderPhase;
+
+            Color top = isDarkTheme() ? new Color(20, 25, 30) : new Color(214, 224, 236);
+            Color bottom = isDarkTheme() ? new Color(9, 13, 18) : new Color(186, 198, 214);
+            GradientPaint gradient = new GradientPaint(0, 0, top, 0, height, bottom);
+            g2.setPaint(gradient);
+            g2.fillRect(0, 0, width, height);
+
+            Color veinColor = isDarkTheme() ? new Color(120, 140, 168, 70) : new Color(80, 110, 150, 60);
+            g2.setColor(veinColor);
+            for (int i = 0; i < 12; i++) {
+                int x = (int) (((i * 79) + shift * 500) % Math.max(1, width));
+                int y = (i * 63) % Math.max(1, height);
+                g2.fillOval(x - 120, y - 8, 240, 16);
+            }
+
+            g2.dispose();
+            if (settings != null && settings.animationsEnabled && settings.renderer == Renderer.HARDWARE_ACCELERATED) {
+                renderPhase += 0.006f;
+                if (renderPhase >= 1f) {
+                    renderPhase = 0f;
+                }
+                repaint(16L);
+            }
+        }
+    }
+
     private void showAboutDialog() {
         JOptionPane.showMessageDialog(this,
-            "Ore Miner v1.3\n\n" +
+            "Ore Miner v1.4\n\n" +
             "A simple mining game where you dig for valuable ores!\n\n" +
             "Created with Java",
             "About Ore Miner",
@@ -496,17 +589,17 @@ public class oreminer extends JFrame {
             "How to Play:\n\n" +
             "1. Click 'Mine' buttons to dig for ore\n" +
             "2. Each ore type gives different points:\n" +
-            "   • Stone: 0 points\n" +
-            "   • Quartz: 1 point\n" +
-            "   • Copper: 2 points\n" +
-            "   • Amethyst: 3 points\n" +
-            "   • Gold: 4 points\n" +
-            "   • Diamond: 5 points\n\n" +
+            "   ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ Stone: 0 points\n" +
+            "   ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ Quartz: 1 point\n" +
+            "   ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ Copper: 2 points\n" +
+            "   ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ Amethyst: 3 points\n" +
+            "   ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ Gold: 4 points\n" +
+            "   ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ Diamond: 5 points\n\n" +
             "3. Try to get the highest score possible!\n\n" +
             "Features:\n" +
-            "• Save and import seeds to replay boards\n" +
-            "• Adjust difficulty for more or fewer valuable ores\n" +
-            "• Track your high score across games",
+            "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ Save and import seeds to replay boards\n" +
+            "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ Adjust difficulty for more or fewer valuable ores\n" +
+            "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ Track your high score across games",
             "Instructions",
             JOptionPane.INFORMATION_MESSAGE);
     }
